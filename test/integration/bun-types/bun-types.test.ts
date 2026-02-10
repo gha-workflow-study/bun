@@ -512,6 +512,39 @@ describe("@types/bun integration test", () => {
     });
   });
 
+  describe("core-js type compatibility", () => {
+    // Uses vendored type definitions from core-js v4-types branch:
+    // https://github.com/zloirock/core-js/tree/v4-types/packages/core-js-types
+    typeTest("no conflicts with upstream core-js-types", {
+      files: {
+        "core-js-types/promise-with-resolvers.d.ts": readFileSync(
+          join(FIXTURE_SOURCE_DIR, "core-js-types", "promise-with-resolvers.d.ts"),
+        ).toString(),
+        "core-js-types/array-buffer-transfer.d.ts": readFileSync(
+          join(FIXTURE_SOURCE_DIR, "core-js-types", "array-buffer-transfer.d.ts"),
+        ).toString(),
+        "core-js-compat.ts": `
+          /// <reference path="core-js-types/promise-with-resolvers.d.ts" />
+          /// <reference path="core-js-types/array-buffer-transfer.d.ts" />
+
+          // Verify usage works with both bun-types and core-js-types loaded
+          const buf = new ArrayBuffer(1024, { maxByteLength: 2048 });
+          buf.resize(2048);
+
+          const { promise, resolve, reject } = Promise.withResolvers<string>();
+          resolve("hello");
+        `,
+      },
+      emptyInterfaces: expectedEmptyInterfacesWhenNoDOM,
+      diagnostics: diagnostics => {
+        const relevantDiagnostics = diagnostics.filter(
+          d => d.line?.startsWith("core-js-compat.ts") || d.line?.startsWith("core-js-types/"),
+        );
+        expect(relevantDiagnostics).toEqual([]);
+      },
+    });
+  });
+
   describe("lib configuration", () => {
     typeTest("checks with no lib at all", {
       options: {
